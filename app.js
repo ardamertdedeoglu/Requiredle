@@ -839,12 +839,12 @@ const GuessComparisonTable = ({ guessedGames, targetGame }) => {
 
   // Helper function to get release year comparison
   const getYearComparison = (guessedYear, targetYear) => {
-    if (guessedYear === targetYear) return { match: 'exact', arrow: null };
-    
+    if (guessedYear === targetYear) return { match: "exact", arrow: null };
+
     if (guessedYear < targetYear) {
-      return { match: 'none', arrow: 'up', hint: 'Guess newer games' };
+      return { match: "none", arrow: "up", hint: "Guess newer games" };
     } else {
-      return { match: 'none', arrow: 'down', hint: 'Guess older games' };
+      return { match: "none", arrow: "down", hint: "Guess older games" };
     }
   };
 
@@ -888,10 +888,13 @@ const GuessComparisonTable = ({ guessedGames, targetGame }) => {
             );
             const genreMatchType = getMatchType(game.genres, targetGame.genres);
             const themeMatchType = getMatchType(game.themes, targetGame.themes);
-            
+
             // Special handling for release year with direction indicators
-            const yearComparison = getYearComparison(game.releaseYear, targetGame.releaseYear);
-            
+            const yearComparison = getYearComparison(
+              game.releaseYear,
+              targetGame.releaseYear
+            );
+
             const gameModeMatchType = getMatchType(
               game.gameModes,
               targetGame.gameModes
@@ -958,13 +961,19 @@ const GuessComparisonTable = ({ guessedGames, targetGame }) => {
                   )}`}
                 >
                   {game.releaseYear}{" "}
-                  {yearComparison.arrow === 'up' && (
-                    <span className="text-blue-400 font-bold" title={yearComparison.hint}>
+                  {yearComparison.arrow === "up" && (
+                    <span
+                      className="text-blue-400 font-bold"
+                      title={yearComparison.hint}
+                    >
                       <i className="fa fa-arrow-up"></i>
                     </span>
                   )}
-                  {yearComparison.arrow === 'down' && (
-                    <span className="text-blue-400 font-bold" title={yearComparison.hint}>
+                  {yearComparison.arrow === "down" && (
+                    <span
+                      className="text-blue-400 font-bold"
+                      title={yearComparison.hint}
+                    >
                       <i className="fa fa-arrow-down"></i>
                     </span>
                   )}
