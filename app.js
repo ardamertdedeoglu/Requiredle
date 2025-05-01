@@ -1022,6 +1022,115 @@ const GuessComparisonTable = ({ guessedGames, targetGame }) => {
   );
 };
 
+// Component for displaying shareable results
+const ShareableResults = ({ gameMode, attemptsUsed, maxAttempts, won }) => {
+  // If not in daily mode or game is not finished, don't show
+  if (gameMode !== "daily" || won === null) {
+    return null;
+  }
+
+  // Create visual emoji representation like Wordle
+  const generateResultsEmoji = () => {
+    const dateStr = new Date().toLocaleDateString("tr-TR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const remainingAttempts = maxAttempts - attemptsUsed;
+
+    let resultsText = `Requiredle ${dateStr} ${
+      won ? maxAttempts - remainingAttempts : "X"
+    }/${maxAttempts}\n\n`;
+
+    // Add black/yellow/green squares based on attempts
+    for (let i = 0; i < maxAttempts; i++) {
+      if (i < attemptsUsed - 1) {
+        // Used attempts that were incorrect
+        resultsText += "⬛"; // Black square
+      } else if (i === attemptsUsed - 1 && won) {
+        // The winning attempt
+        resultsText += "🟩"; // Green square
+      } else if (i < attemptsUsed && !won) {
+        // Last attempt (failed)
+        resultsText += "🟥"; // Red square
+      } else {
+        // Unused attempts
+        resultsText += "⬜"; // White square
+      }
+
+      // Add line breaks for a nice grid layout (5 per row)
+      if ((i + 1) % 5 === 0 && i !== maxAttempts - 1) {
+        resultsText += "\n";
+      }
+    }
+
+    resultsText += "\n\nhttps://requiredle.com";
+    return resultsText;
+  };
+
+  const handleShare = () => {
+    const results = generateResultsEmoji();
+    navigator.clipboard
+      .writeText(results)
+      .then(() => {
+        document.getElementById("shareNotification").classList.remove("hidden");
+        setTimeout(() => {
+          document.getElementById("shareNotification").classList.add("hidden");
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy results: ", err);
+      });
+  };
+
+  return (
+    <div className="mt-6 text-center">
+      <h3 className="text-xl font-bold mb-4">Today's Results</h3>
+
+      <div className="bg-gray-900 p-4 rounded-lg mb-4 inline-block mx-auto">
+        {won === true && (
+          <div className="text-green-500 mb-2 font-bold text-lg">
+            Won in {attemptsUsed}/{maxAttempts} attempts
+          </div>
+        )}
+        {won === false && (
+          <div className="text-red-500 mb-2 font-bold text-lg">
+            Failed after {maxAttempts} attempts
+          </div>
+        )}
+
+        <div className="mb-4 grid grid-cols-5 gap-1">
+          {[...Array(maxAttempts)].map((_, i) => (
+            <div
+              key={i}
+              className={`w-6 h-6 rounded-sm ${
+                i < attemptsUsed - 1
+                  ? "bg-gray-800" // Used attempts (incorrect)
+                  : i === attemptsUsed - 1 && won
+                  ? "bg-green-600" // Winning attempt
+                  : i < attemptsUsed && !won
+                  ? "bg-red-600" // Failed final attempt
+                  : "bg-gray-600" // Unused attempts
+              }`}
+            ></div>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={handleShare}
+        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium flex items-center mx-auto"
+      >
+        <i className="fas fa-share-alt mr-2"></i> Share Results
+      </button>
+
+      <div id="shareNotification" className="mt-4 text-green-400 hidden">
+        Results copied to clipboard!
+      </div>
+    </div>
+  );
+};
+
 // Main Game component
 const RequiredleGame = () => {
   const [currentDate, setCurrentDate] = React.useState(
@@ -1042,14 +1151,18 @@ const RequiredleGame = () => {
     return saved ? parseInt(saved) : 0;
   });
   const [suggestions, setSuggestions] = React.useState([]);
-  const [gameMode, setGameMode] = React.useState("daily"); // 'daily' or 'unlimited'
+  const [gameMode, setGameMode] = React.useState(getCurrentGameMode());
   const [playedGames, setPlayedGames] = React.useState(() => {
     const saved = localStorage.getItem("requiredle-played-games");
     return saved ? JSON.parse(saved) : [];
   });
   const [gamesWon, setGamesWon] = React.useState(0);
   const [gamesLost, setGamesLost] = React.useState(0);
+  const [gamesSkipped, setGamesSkipped] = React.useState(0);
   const inputRef = React.useRef(null);
+  const [gameWon, setGameWon] = React.useState(null); // null, true, or false
+  const [showResultsScreen, setShowResultsScreen] = React.useState(false);
+  const [completedGameData, setCompletedGameData] = React.useState(null);
 
   // Initialize game
   React.useEffect(() => {
@@ -1139,17 +1252,40 @@ const RequiredleGame = () => {
 
   // Save game state (only for daily mode)
   React.useEffect(() => {
-    if (currentGame && gameMode === "daily") {
+    if (currentGame && gameMode === "daily" && gameStatus !== 'playing') {
+      // When game completes, store game name for results screen
       const dateStr = new Date().toISOString().split("T")[0];
+      const currentState = JSON.parse(localStorage.getItem(`requiredle-game-${dateStr}`) || '{}');
+      
       localStorage.setItem(
         `requiredle-game-${dateStr}`,
         JSON.stringify({
+          ...currentState,
           attemptsLeft,
           showHint,
           gameStatus,
           guessHistory,
+          gameName: currentGame.title
         })
       );
+      
+      // If game just ended, update UI to show results screen
+      if ((gameStatus === 'won' || gameStatus === 'lost') && !showResultsScreen) {
+        const gameData = {
+          date: dateStr,
+          gameWon: gameStatus === 'won',
+          attempts: 10 - attemptsLeft,
+          maxAttempts: 10,
+          gameName: 'Requiredle'
+        };
+        
+        setCompletedGameData(gameData);
+        
+        // Short delay before showing results screen
+        setTimeout(() => {
+          setShowResultsScreen(true);
+        }, 1500);
+      }
     }
   }, [attemptsLeft, showHint, gameStatus, guessHistory, currentGame, gameMode]);
 
@@ -1197,86 +1333,155 @@ const RequiredleGame = () => {
 
   const handleGuess = (e) => {
     e.preventDefault();
-
-    if (gameStatus !== "playing") {
+    
+    if (gameStatus !== 'playing') {
       return;
     }
-
+    
     if (!guess.trim()) {
-      setMessage("Please enter a guess");
-      setMessageClass("text-yellow-400");
+      setMessage('Please enter a guess');
+      setMessageClass('text-yellow-400');
       return;
     }
-
+    
     const cleanGuess = guess.trim().toLowerCase();
     const correctAnswer = currentGame.title.toLowerCase();
-
+    
     // Add to guess history
     setGuessHistory([...guessHistory, guess.trim()]);
-
+    
     if (cleanGuess === correctAnswer) {
       // Correct guess
       setGameStatus("won");
+      setGameWon(true);
       setMessage("Correct! You got it!");
       setMessageClass("text-green-400");
+      
+      // Calculate attempts used - make sure it's at least 1 even if won on first try
+      const attemptsUsed = Math.max(1, 10 - attemptsLeft + 1);
 
       // Track played game
       const dateStr = new Date().toISOString().split("T")[0];
-      setPlayedGames([
-        ...playedGames,
-        {
-          date: dateStr,
-          gameId: currentGame.id,
-          result: "won",
-          attempts: 10 - attemptsLeft + 1,
-        },
-      ]);
-
+      const playedGame = {
+        date: dateStr,
+        gameId: currentGame.id,
+        result: "won",
+        attempts: attemptsUsed
+      };
+      
+      setPlayedGames([...playedGames, playedGame]);
+      
       // Update stats
       setGamesWon((prev) => prev + 1);
-
+      
       // Update streak (only in daily mode)
       if (gameMode === "daily") {
         setStreak((prev) => prev + 1);
+        
+        // Save game data including game name
+        localStorage.setItem(
+          `requiredle-game-${dateStr}`,
+          JSON.stringify({
+            attemptsLeft,
+            showHint,
+            gameStatus: "won",
+            guessHistory: [...guessHistory, guess.trim()],
+            gameName: currentGame.title,
+            resultShown: false // Add flag to track if results have been shown
+          })
+        );
+        
+        // Redirect to results page immediately only if this is the first win
+        window.location.href = 'results.html';
       }
     } else {
       // Wrong guess
       const newAttemptsLeft = attemptsLeft - 1;
       setAttemptsLeft(newAttemptsLeft);
-
-      if (newAttemptsLeft === 0) {
-        // Game over
+      
+      if (newAttemptsLeft <= 0) {
+        // Game over - out of attempts
         setGameStatus("lost");
-        setMessage(`Game over! The correct answer was ${currentGame.title}`);
+        setGameWon(false);
+        setMessage(`Game over! The answer was ${currentGame.title}`);
         setMessageClass("text-red-400");
-
+        
         // Track played game
         const dateStr = new Date().toISOString().split("T")[0];
-        setPlayedGames([
-          ...playedGames,
-          {
-            date: dateStr,
-            gameId: currentGame.id,
-            result: "lost",
-            attempts: 10,
-          },
-        ]);
-
+        const playedGame = {
+          date: dateStr,
+          gameId: currentGame.id,
+          result: "lost",
+          attempts: 10
+        };
+        
+        setPlayedGames([...playedGames, playedGame]);
+        
         // Update stats
         setGamesLost((prev) => prev + 1);
-
-        // Reset streak (only in daily mode)
+        
+        // Reset streak for daily mode
         if (gameMode === "daily") {
           setStreak(0);
+          
+          // Save game data including game name
+          localStorage.setItem(
+            `requiredle-game-${dateStr}`,
+            JSON.stringify({
+              attemptsLeft: 0,
+              showHint,
+              gameStatus: "lost",
+              guessHistory: [...guessHistory, guess.trim()],
+              gameName: currentGame.title,
+              resultShown: false // Add flag to track if results have been shown
+            })
+          );
+          
+          // Redirect to results page immediately only if it's first time seeing results
+          window.location.href = 'results.html';
         }
       } else {
-        // Continue game
-        setMessage("Incorrect guess. Try again!");
-        setMessageClass("text-red-400");
+        // Wrong guess but still have attempts left
+        let feedback = "Incorrect guess. Try again!";
+        if (newAttemptsLeft <= 5 && !showHint) {
+          feedback = "Hint unlocked!";
+          setShowHint(true);
+        }
+        setMessage(feedback);
+        setMessageClass("text-yellow-400");
       }
     }
+    
+    setGuess('');
+  };
 
-    setGuess("");
+  const handleSkip = () => {
+    if (gameStatus !== "playing" || gameMode !== "unlimited") {
+      return;
+    }
+
+    // Track skipped game
+    const dateStr = new Date().toISOString().split("T")[0];
+    setPlayedGames([
+      ...playedGames,
+      {
+        date: dateStr,
+        gameId: currentGame.id,
+        result: "skipped",
+      },
+    ]);
+
+    // Update stats
+    setGamesSkipped((prev) => prev + 1);
+
+    // Message
+    setMessage(`Skipped. The game was ${currentGame.title}`);
+    setMessageClass("text-blue-400");
+
+    // Move to next game after a short delay
+    setTimeout(() => {
+      initializeUnlimitedGame();
+    }, 2000);
   };
 
   const handleSelectSuggestion = (selectedTitle) => {
@@ -1296,9 +1501,8 @@ const RequiredleGame = () => {
 
   const handleModeChange = (mode) => {
     if (mode === gameMode) return;
-
+    saveGameMode(mode);
     setGameMode(mode);
-    // Game initialization will happen in the useEffect
   };
 
   const handleNextGame = () => {
@@ -1316,6 +1520,9 @@ const RequiredleGame = () => {
     const todaysLost = todaysGames.filter(
       (game) => game.result === "lost"
     ).length;
+    const todaysSkipped = todaysGames.filter(
+      (game) => game.result === "skipped"
+    ).length;
 
     return (
       <div className="bg-gray-700 p-3 rounded-lg text-center mb-4">
@@ -1332,14 +1539,20 @@ const RequiredleGame = () => {
             <p className="text-xs text-gray-300">Lost</p>
           </div>
           <div>
+            <span className="text-blue-400 font-bold text-xl">
+              {todaysSkipped}
+            </span>
+            <p className="text-xs text-gray-300">Skipped</p>
+          </div>
+          <div>
             <span className="text-yellow-400 font-bold text-xl">
-              {todaysWon + todaysLost}
+              {todaysWon + todaysLost + todaysSkipped}
             </span>
             <p className="text-xs text-gray-300">Played</p>
           </div>
           <div>
-            <span className="text-blue-400 font-bold text-xl">
-              {gameData.length - todaysWon - todaysLost}
+            <span className="text-purple-400 font-bold text-xl">
+              {gameData.length - todaysWon - todaysLost - todaysSkipped}
             </span>
             <p className="text-xs text-gray-300">Remaining</p>
           </div>
@@ -1349,8 +1562,35 @@ const RequiredleGame = () => {
   };
 
   // If game is not loaded yet
-  if (!currentGame && gameStatus !== "completed") {
+  if (!currentGame && gameStatus !== "completed" && !showResultsScreen) {
     return <div className="text-center p-10 text-xl">Loading game...</div>;
+  }
+  
+  // If we need to show the results screen for daily challenge
+  if (showResultsScreen && gameMode === 'daily' && completedGameData) {
+    return (
+      <div className="game-container">
+        <header className="text-center mb-6">
+          <h1 className="text-4xl font-bold text-green-400 mb-2">Requiredle</h1>
+          <p className="mb-6">Guess the game from its system requirements!</p>
+          
+          <ModeSelector currentMode={gameMode} onModeChange={handleModeChange} />
+        </header>
+        
+        <ResultsScreen
+          date={completedGameData.date}
+          gameWon={completedGameData.gameWon}
+          attempts={completedGameData.attempts}
+          maxAttempts={10}
+          gameName={completedGameData.gameName}
+        />
+        
+        <footer className="mt-8 text-center text-gray-500 text-sm">
+          <p>Requiredle - A game about guessing video games from system requirements</p>
+          <p className="mt-2">Come back tomorrow for a new challenge!</p>
+        </footer>
+      </div>
+    );
   }
 
   return (
@@ -1447,6 +1687,17 @@ const RequiredleGame = () => {
             </div>
           </form>
 
+          {gameMode === "unlimited" && gameStatus === "playing" && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={handleSkip}
+                className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded font-medium"
+              >
+                Skip
+              </button>
+            </div>
+          )}
+
           {guessHistory.length > 0 && (
             <>
               <div className="mt-4 mb-2">
@@ -1499,10 +1750,19 @@ const RequiredleGame = () => {
                   : "Better luck next time!"}
               </p>
 
+              {gameMode === "daily" && (
+                <ShareableResults
+                  gameMode={gameMode}
+                  attemptsUsed={10 - attemptsLeft}
+                  maxAttempts={10}
+                  won={gameWon}
+                />
+              )}
+
               {gameMode === "daily" ? (
                 <button
                   onClick={() => window.location.reload()}
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-medium"
+                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-medium mt-4"
                 >
                   Refresh
                 </button>

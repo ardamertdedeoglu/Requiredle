@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Requiredle Results</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="bg-gray-900 text-white min-h-screen">
+    <div id="results-root" class="container mx-auto px-4 py-8 w-full max-w-full"></div>
+
+    <!-- Results specific script -->
+    <script type="text/babel" src="results.js"></script>
+    <script type="text/babel">
+      // Load and display results immediately on page load
+      document.addEventListener('DOMContentLoaded', () => {
+        const resultsData = getCompletedGameData();
+        
+        if (resultsData) {
+          ReactDOM.render(
+            <div className="game-container">
+              <header className="text-center mb-6">
+                <h1 className="text-4xl font-bold text-green-400 mb-2">Requiredle</h1>
+                <p className="mb-6">Guess the game from its system requirements!</p>
+              </header>
+              
+              <ResultsScreen
+                date={resultsData.date}
+                gameWon={resultsData.gameWon}
+                attempts={resultsData.attempts}
+                maxAttempts={resultsData.maxAttempts}
+                gameName={resultsData.gameName}
+              />
+              
+              <footer className="mt-8 text-center text-gray-500 text-sm">
+                <p>Requiredle - A game about guessing video games from system requirements</p>
+                <p className="mt-2">
+                  <a href="index.html" className="underline hover:text-green-400">Back to Game</a>
+                </p>
+              </footer>
+            </div>,
+            document.getElementById('results-root')
+          );
+        } else {
+          // No results data found, redirect back to main game
+          window.location.href = 'index.html';
+        }
+      });
+    </script>
+  </body>
+</html>
